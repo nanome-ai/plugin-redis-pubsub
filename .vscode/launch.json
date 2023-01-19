@@ -10,7 +10,8 @@
       "request": "launch",
       "program": "run.py",
       "args": ["-v", "-r"],
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "python": "${command:python.interpreterPath}"
     }
   ]
 }

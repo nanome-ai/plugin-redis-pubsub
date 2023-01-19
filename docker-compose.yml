@@ -1,0 +1,25 @@
+version: '3'
+services:
+  redis:
+    image: redis
+  plugin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    tty: true
+    environment:
+      - NTS_HOST=${NTS_HOST:-}
+      - NTS_PORT=${NTS_PORT:-}
+      - NTS_KEY=${NTS_KEY:-}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_CHANNEL=${REDIS_CHANNEL:-}
+      - PLUGIN_NAME=${PLUGIN_NAME:-}
+      - PLUGIN_DESCRIPTION=${PLUGIN_DESCRIPTION:-}
+
+    depends_on:
+      - redis
+    volumes:
+      - ./plugin:/app/plugin
+
