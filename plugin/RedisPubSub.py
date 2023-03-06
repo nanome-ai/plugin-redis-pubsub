@@ -32,7 +32,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         redis_channel = os.environ.get('REDIS_CHANNEL')
         # Create random channel name if not explicitly set.
         if not redis_channel:
-            redis_channel = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+            redis_channel = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
         self.redis_channel = redis_channel
         Logs.message(f"Starting {self.__class__.__name__} on Redis Channel {self.redis_channel}")
         self.streams = []
