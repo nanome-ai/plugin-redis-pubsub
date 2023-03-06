@@ -1,63 +1,52 @@
-# Nanome - RedisPubSub
+# Redis Pubsub interface for Nanome Workspaces
 
-Communicates with NTS via Redis pubsub messages
+Nanome is an immersive XR platform for collaborative computationally-driven molecular design. Learn more about Nanome at https://nanome.ai.
 
-## Dependencies
+This plugin creates an interface for interacting with your workspace via Redis PubSub messages. This enables simpler programmatic communication between applications. For example, Nanome's Jupyter notebooks communicate with your workspace via this interface. (https://github.com/nanome-ai/plugin-cookbook)
 
-[Docker](https://docs.docker.com/get-docker/)
+## Installation
 
-**TODO**: Provide instructions on how to install and link any external dependencies for this plugin.
+### Requirements:
+- Docker (https://docs.docker.com/get-docker/)
+- Docker Compose (https://docs.docker.com/compose/install/)
 
-**TODO**: Update docker/Dockerfile to install any necessary dependencies.
-
-## Usage
-
-To run RedisPubSub in a Docker container:
-
+### Clone, Build,  and deploy
+1) Use Git to clone this repository to your computer.
 ```sh
-$ cd docker
-$ ./build.sh
-$ ./deploy.sh [run_args]
-```
+git clone https://github.com/nanome-ai/plugin-redis-pubsub.git
+````
 
-### Run args
-
-These args are passed to deploy.sh, and then forwarded to the Plugin's run.py command
-
+3) Create .env file, containing NTS connection values, as well as credentials for a running Redis instance
 ```sh
-usage: run.py [-h] [-a HOST] [-p PORT] [-r] [-v] [-n NAME] [-k KEYFILE]
-              [-i IGNORE] [--write-log-file WRITE_LOG_FILE]
+cp .env.sample .env
 
-Starts a Nanome Plugin.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -a HOST, --host HOST  connects to NTS at the specified IP address
-  -p PORT, --port PORT  connects to NTS at the specified port
-  -r, --auto-reload     Restart plugin automatically if a .py or .json file in
-                        current directory changes
-  -v, --verbose         enable verbose mode, to display Logs.debug
-  -n NAME, --name NAME  Name to display for this plugin in Nanome
-  -k KEYFILE, --keyfile KEYFILE
-                        Specifies a key file or key string to use to connect
-                        to NTS
-  -i IGNORE, --ignore IGNORE
-                        To use with auto-reload. All paths matching this
-                        pattern will be ignored, use commas to specify
-                        several. Supports */?/[seq]/[!seq]
-  --write-log-file WRITE_LOG_FILE
-                        Enable or disable writing logs to .log file
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=12345678
+PLUGIN_NAME=Redis-api
 
 ```
 
-## Development
-To run RedisPubSub with autoreload:
-
+3) Build and deploy
 ```sh
-$ python3 -m pip install -r requirements.txt
-$ python3 run.py -r [run_args]
+python run.py
 ```
 
-## License
+## Redis RPC architecture
+- `plugin_service` container runs your standard plugin instance. When activated in Nanome, When the plugin is run, it subscribes to the Redis channel, and starts polling, waiting to receive messages containing info on what function to run.
 
-MIT
+```
+{
+  "function": <function_name>
+  "args": [...],
+  "kwargs": {...},
+  "response_channel": "uuid4()"
+}
+```
+- When the message is received by `plugin_service`, it parses it and executes the provided function with args and kwargs. It then publishes the results back to the designated `response_channel`.
+
+![alt text](assets/pubsub.png)
+
+## Contributors
+@mjrosengrant
+@ajm13
