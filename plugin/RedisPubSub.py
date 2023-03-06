@@ -2,17 +2,20 @@ import functools
 import inspect
 import json
 import os
+import random
+import string
 import redis
+import time
 import threading
 import uuid
 
 import nanome
+from nanome._internal._util._serializers import _TypeSerializer
 from nanome.util import async_callback, Logs
 from nanome.util.enums import NotificationTypes, PluginListButtonType
-from nanome._internal._util._serializers import _TypeSerializer
 from marshmallow import Schema, fields
 
-from nanome.api import schemas
+from nanome.api import schemas, ui
 from .api_definitions import api_function_definitions
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
@@ -27,9 +30,11 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
 
     @async_callback
     async def start(self):
-        # Create Redis channel name to send to frontend to publish to
         redis_channel = os.environ.get('REDIS_CHANNEL')
-        self.redis_channel = redis_channel if redis_channel else str(uuid.uuid4())
+        # Create random channel name if not explicitly set.
+        if not redis_channel:
+            redis_channel = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
+        self.redis_channel = redis_channel
         Logs.message(f"Starting {self.__class__.__name__} on Redis Channel {self.redis_channel}")
         self.streams = []
         self.shapes = []
@@ -45,8 +50,16 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
             url = default_url
             Logs.message(f'Opening {url}')
             self.open_url(url)
+        # Render menu with room name on it
+        self.menu = ui.Menu()
+        id_node = self.menu.root.create_child_node()
+        id_node.add_new_label(f'Room ID: {self.redis_channel}')
+        text_node = self.menu.root.create_child_node()
+        text_node.add_new_label('Use this code to access your workspace')
+        self.menu.enabled = True
         Logs.message("Polling for requests")
         self.set_plugin_list_button(PluginListButtonType.run, text='Live', usable=False)
+        self.update_menu(self.menu)
         await self.poll_redis_for_requests(self.redis_channel)
 
     async def poll_redis_for_requests(self, redis_channel):
@@ -72,6 +85,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
                 # Process message in a thread, so errors don't crash the main loop
                 thread = threading.Thread(target=self.process_message, args=[message])
                 thread.start()
+            time.sleep(0.1)
 
     def process_message(self, message):
         """Deserialize message and forward request to NTS."""

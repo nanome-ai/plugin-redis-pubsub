@@ -9,7 +9,11 @@
       "type": "python",
       "request": "launch",
       "program": "run.py",
-      "args": ["-v", "-r"],
+      "envFile": "${workspaceFolder}/.env",
+      "env":{
+        "PLUGIN_VERBOSE": "True",
+        "PLUGIN_NAME": "[wip]-pubsub"
+      },
       "console": "integratedTerminal",
       "python": "${command:python.interpreterPath}"
     }
