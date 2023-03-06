@@ -27,6 +27,7 @@ jobs:
       - name: Run version.sh
         run: |
           pip install bump2version
+          git clean -f
           chmod +x ./version.sh
           ./version.sh ${{ github.event.inputs.version_part }}
       - name: get new version number
