@@ -7,10 +7,9 @@ import string
 import redis
 import time
 import threading
-import uuid
 
 import nanome
-from nanome._internal._util._serializers import _TypeSerializer
+from nanome._internal.serializer_fields import TypeSerializer
 from nanome.util import async_callback, Logs
 from nanome.util.enums import NotificationTypes, PluginListButtonType
 from marshmallow import Schema, fields
@@ -181,7 +180,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         """Return data required for interface to serialize message requests."""
         plugin_id = self._network._plugin_id
         session_id = self._network._session_id
-        version_table = _TypeSerializer.get_version_table()
+        version_table = TypeSerializer.get_version_table()
         data = {
             'plugin_id': plugin_id,
             'session_id': session_id,
