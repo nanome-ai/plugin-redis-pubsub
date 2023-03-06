@@ -9,22 +9,17 @@ This plugin creates an interface for interacting with your workspace via Redis P
 ### Requirements:
 - Docker (https://docs.docker.com/get-docker/)
 - Docker Compose (https://docs.docker.com/compose/install/)
+- nanome-lib[schemas] (`pip install nanome-lib[schemas]`) (schemas adds extra tools for working with Nanome's JSON schemas)
 
-### Clone, Build,  and deploy
+### Clone, Build, and deploy
 1) Use Git to clone this repository to your computer.
 ```sh
 git clone https://github.com/nanome-ai/plugin-redis-pubsub.git
 ````
 
-3) Create .env file, containing NTS connection values, as well as credentials for a running Redis instance
+2) Create .env file, containing NTS connection values, as well as credentials for a running Redis instance
 ```sh
 cp .env.sample .env
-
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=12345678
-PLUGIN_NAME=Redis-api
-
 ```
 
 3) Build and deploy
@@ -33,7 +28,7 @@ python run.py
 ```
 
 ## Redis RPC architecture
-- `plugin_service` container runs your standard plugin instance. When activated in Nanome, When the plugin is run, it subscribes to the Redis channel, and starts polling, waiting to receive messages containing info on what function to run.
+- `plugin` container runs your standard plugin instance. When activated in Nanome, a room id is assigned, and the plugin subscribes to a unique Redis channel corresponding to the room id. The plugin starts polling, waiting to receive messages containing info on what function to run.
 
 ```
 {
@@ -43,7 +38,6 @@ python run.py
   "response_channel": "uuid4()"
 }
 ```
-- When the message is received by `plugin_service`, it parses it and executes the provided function with args and kwargs. It then publishes the results back to the designated `response_channel`.
 
 ![alt text](assets/pubsub.png)
 
