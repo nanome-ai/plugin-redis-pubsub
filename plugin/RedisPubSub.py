@@ -15,7 +15,7 @@ from nanome.util.enums import NotificationTypes, PluginListButtonType
 from marshmallow import Schema, fields
 
 from nanome.api import schemas, ui
-from .api_definitions import api_function_definitions
+from nanome.api.schemas.api_definitions import api_function_definitions
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
 MENU_PATH = os.path.join(BASE_PATH, 'default_menu.json')
