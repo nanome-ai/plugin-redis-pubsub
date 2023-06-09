@@ -88,6 +88,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
 
     def process_message(self, message):
         """Deserialize message and forward request to NTS."""
+        process_start_time = time.time()
         try:
             data = json.loads(message.get('data'))
         except json.JSONDecodeError:
@@ -117,12 +118,19 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         response_channel = data.get('response_channel')
         if 'callback' in argspec.args:
             callback_fn = functools.partial(
-                self.message_callback, fn_definition, response_channel)
+                self.message_callback, fn_definition, response_channel, process_start_time)
             fn_args.append(callback_fn)
         # Call API function
         function_to_call(*fn_args, **fn_kwargs)
+        if not callback_fn:
+            # If no callback function, send a success notification
+            success_message = f'Successfully called {fn_name}'
+            process_end_time = time.time()
+            elapsed_time = process_end_time - process_start_time
+            Logs.message(f'{success_message} in {round(elapsed_time, 2)} seconds')
+            self.send_notification(NotificationTypes.success, success_message)
 
-    def message_callback(self, fn_definition, response_channel, response=None, *args):
+    def message_callback(self, fn_definition, response_channel, process_start_time, response=None):
         """When response data received from NTS, serialize and publish to response channel."""
         output_schema = fn_definition.output
         serialized_response = {}
@@ -143,6 +151,9 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         json_response = json.dumps(serialized_response)
         Logs.message(f'Publishing Response to {response_channel}')
         self.rds.publish(response_channel, json_response)
+        process_end_time = time.time()
+        elapsed_time = process_end_time - process_start_time
+        Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
 
     def deserialize_arg(self, arg_data):
         """Deserialize arguments recursively."""
