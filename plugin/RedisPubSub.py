@@ -110,11 +110,11 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
                 # Field that does not need to be deserialized
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
-        response_channel = data['response_channel']
         function_to_call = getattr(self, fn_name)
         # Set up callback function
         argspec = inspect.getargspec(function_to_call)
         callback_fn = None
+        response_channel = data.get('response_channel')
         if 'callback' in argspec.args:
             callback_fn = functools.partial(
                 self.message_callback, fn_definition, response_channel)
