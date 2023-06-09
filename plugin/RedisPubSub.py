@@ -98,7 +98,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         Logs.message(f"Received Request: {data.get('function')}")
         fn_name = data['function']
         serialized_args = data['args']
-        serialized_kwargs = data['kwargs']
+        response_channel = data.get('response_channel')
         fn_definition = api_function_definitions[fn_name]
         fn_args = []
         fn_kwargs = {}
@@ -112,10 +112,10 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
         function_to_call = getattr(self, fn_name)
+
         # Set up callback function
         argspec = inspect.getargspec(function_to_call)
         callback_fn = None
-        response_channel = data.get('response_channel')
         if 'callback' in argspec.args:
             callback_fn = functools.partial(
                 self.message_callback, fn_definition, response_channel, process_start_time)
@@ -128,7 +128,6 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
             process_end_time = time.time()
             elapsed_time = process_end_time - process_start_time
             Logs.message(f'{success_message} in {round(elapsed_time, 2)} seconds')
-            self.send_notification(NotificationTypes.success, success_message)
 
     def message_callback(self, fn_definition, response_channel, process_start_time, response=None):
         """When response data received from NTS, serialize and publish to response channel."""
@@ -149,8 +148,11 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
                 Logs.error("Error creating stream")
 
         json_response = json.dumps(serialized_response)
-        Logs.message(f'Publishing Response to {response_channel}')
-        self.rds.publish(response_channel, json_response)
+        if response_channel:
+            Logs.message(f'Publishing Response to {response_channel}')
+            self.rds.publish(response_channel, json_response)
+        else:
+            Logs.warning('No response channel provided, response will not be sent')
         process_end_time = time.time()
         elapsed_time = process_end_time - process_start_time
         Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
