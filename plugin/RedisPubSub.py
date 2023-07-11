@@ -129,10 +129,17 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
             elapsed_time = process_end_time - process_start_time
             Logs.message(f'{success_message} in {round(elapsed_time, 2)} seconds')
 
-    def message_callback(self, fn_definition, response_channel, process_start_time, response=None):
+    def message_callback(self, fn_definition, response_channel, process_start_time, *responses):
         """When response data received from NTS, serialize and publish to response channel."""
         output_schema = fn_definition.output
         serialized_response = {}
+        if len(responses) == 1:
+            response = responses[0]
+        else:
+            # Some functions return multiple values, like create_writing_stream
+            # We only care about the first response
+            response, _ = responses[0], responses[1:]
+
         if output_schema:
             if isinstance(output_schema, Schema):
                 serialized_response = output_schema.dump(response)
