@@ -5,17 +5,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Nanome Plugin",
+      "name": "Pubsub Plugin",
       "type": "python",
       "request": "launch",
       "program": "run.py",
       "envFile": "${workspaceFolder}/.env",
       "env":{
         "PLUGIN_VERBOSE": "True",
-        "PLUGIN_NAME": "[wip]-pubsub"
+        "PLUGIN_NAME": "[wip]-pubsub",
       },
       "console": "integratedTerminal",
-      "python": "${command:python.interpreterPath}"
+      "python": "${command:python.interpreterPath}",
+      "justMyCode": false
     }
   ]
 }
