@@ -106,34 +106,30 @@ class RedisPubSubPlugin(NanomePlugin):
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
         function_to_call = getattr(self.client, fn_name)
-        Logs.debug("Function to Call: " + str(function_to_call))
-        # Set up callback function
+
         # Check if function_to_call is a coroutine
         if inspect.iscoroutinefunction(function_to_call):
-            output = await function_to_call(*fn_args, **fn_kwargs)
+            response = await function_to_call(*fn_args, **fn_kwargs)
         else:
-            output = function_to_call(*fn_args, **fn_kwargs)
-
-        self.message_callback(fn_definition, response_channel, process_start_time, output)
-
-    def message_callback(self, fn_definition, response_channel, process_start_time, *responses):
-        """When response data received from NTS, serialize and publish to response channel."""
+            response = function_to_call(*fn_args, **fn_kwargs)
+        Logs.debug("Responses received")
+        # When response data received from NTS, serialize and publish to response channel.
         output_schema = fn_definition.output
         serialized_response = {}
-        if len(responses) == 1:
-            response = responses[0]
-        else:
-            # Some functions return multiple values, like create_writing_stream
-            # We only care about the first response
-            response, _ = responses[0], responses[1:]
+        Logs.debug(response)
 
+        # Some functions return multiple values, like create_writing_stream
+        # We only care about the first response
+        if isinstance(response, tuple):
+            response = response[0]
+
+        Logs.debug("Response parsed")
         if output_schema:
             if isinstance(output_schema, Schema):
                 serialized_response = output_schema.dump(response)
             elif isinstance(output_schema, fields.Field):
                 # Field that does not need to be deserialized
                 serialized_response = output_schema.serialize(response)
-
         if fn_definition.__class__.__name__ == 'CreateWritingStream':
             Logs.message("Saving Stream to Plugin Instance")
             if response:
