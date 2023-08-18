@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import inspect
 import json
@@ -15,6 +16,7 @@ from nanome.util.enums import NotificationTypes, PluginListButtonType
 from marshmallow import Schema, fields
 
 from nanome.api import schemas, ui
+from nanome.beta.nanome_sdk import NanomePlugin
 from nanome.api.schemas.api_definitions import api_function_definitions
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
@@ -25,10 +27,9 @@ REDIS_PORT = os.environ.get('REDIS_PORT')
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
 
 
-class RedisPubSubPlugin(nanome.AsyncPluginInstance):
+class RedisPubSubPlugin(NanomePlugin):
 
-    @async_callback
-    async def start(self):
+    async def on_start(self):
         redis_channel = os.environ.get('REDIS_CHANNEL')
         # Create random channel name if not explicitly set.
         if not redis_channel:
@@ -42,7 +43,8 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
             host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD,
             decode_responses=True)
 
-    @async_callback
+        self._tasks = []
+
     async def on_run(self):
         default_url = os.environ.get('DEFAULT_URL')
         if default_url:
@@ -57,8 +59,8 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         text_node.add_new_label('Use this code to access your workspace')
         self.menu.enabled = True
         Logs.message("Polling for requests")
-        self.set_plugin_list_button(PluginListButtonType.run, text='Live', usable=False)
-        self.update_menu(self.menu)
+        self.client.set_plugin_list_button(PluginListButtonType.run, text='Live', usable=False)
+        self.client.update_menu(self.menu)
         await self.poll_redis_for_requests(self.redis_channel)
 
     async def poll_redis_for_requests(self, redis_channel):
@@ -70,23 +72,15 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
         pubsub.subscribe(redis_channel)
 
         while True:
-            # Run these to properly handle callback responses
-            net_receive = self._network._receive()
-            proc_update = self._process_manager.update()
-            if not net_receive or not proc_update:
-                break
-
             # Check if any new messages have been received
             message = pubsub.get_message()
             if not message:
                 continue
             if message.get('type') == 'message':
-                # Process message in a thread, so errors don't crash the main loop
-                thread = threading.Thread(target=self.process_message, args=[message])
-                thread.start()
-            time.sleep(0.1)
+                new_task = asyncio.create_task(self.process_message(message))
+                self._tasks.append(new_task)
 
-    def process_message(self, message):
+    async def process_message(self, message):
         """Deserialize message and forward request to NTS."""
         process_start_time = time.time()
         try:
@@ -111,7 +105,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
                 # Field that does not need to be deserialized
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
-        function_to_call = getattr(self, fn_name)
+        function_to_call = getattr(self.client, fn_name)
 
         # Set up callback function
         argspec = inspect.getargspec(function_to_call)
@@ -207,3 +201,7 @@ class RedisPubSubPlugin(nanome.AsyncPluginInstance):
             'version_table': version_table
         }
         return data
+
+    @property
+    def request_futs(self):
+        return self.client.request_futs

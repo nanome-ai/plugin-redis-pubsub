@@ -1,25 +1,21 @@
 import os
-import nanome
+import asyncio
+from nanome.beta.nanome_sdk.plugin_server import PluginServer
 
 from plugin.RedisPubSub import RedisPubSubPlugin
-from nanome.api import Plugin
 
 
 def main():
-    parser = Plugin.create_parser()
-    args, _ = parser.parse_known_args()
-
+    server = PluginServer()
+    host = os.environ['NTS_HOST']
+    port = int(os.environ['NTS_PORT'])
     default_name = 'Redis API'
-    arg_name = args.name or []
-    plugin_name = ' '.join(arg_name) or default_name
+    plugin_name = os.environ.get('PLUGIN_NAME') or default_name
 
     default_description = 'Interact with your Nanome session via our Redis API.'
     description = os.environ.get('PLUGIN_DESCRIPTION') or default_description
-    tags = ['Interactions']
-
-    plugin = nanome.Plugin(plugin_name, description, tags)
-    plugin.set_plugin_class(RedisPubSubPlugin)
-    plugin.run()
+    plugin_class = RedisPubSubPlugin
+    asyncio.run(server.run(host, port, plugin_name, description, plugin_class))
 
 
 if __name__ == '__main__':
