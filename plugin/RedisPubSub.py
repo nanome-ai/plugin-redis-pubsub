@@ -105,7 +105,14 @@ class RedisPubSubPlugin(NanomePlugin):
                 # Field that does not need to be deserialized
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
-        function_to_call = getattr(self.client, fn_name)
+
+        # Most functions are on the client, but some are on the NanomePlugin
+        if hasattr(self.client, fn_name):
+            function_to_call = getattr(self.client, fn_name)
+        else:
+            function_to_call = getattr(self, fn_name)
+
+        Logs.debug(f"Function to call: {fn_name}")
 
         # Check if function_to_call is a coroutine
         if inspect.iscoroutinefunction(function_to_call):
@@ -116,24 +123,20 @@ class RedisPubSubPlugin(NanomePlugin):
         # When response data received from NTS, serialize and publish to response channel.
         output_schema = fn_definition.output
         serialized_response = {}
-        Logs.debug(response)
-
-        # Some functions return multiple values, like create_writing_stream
-        # We only care about the first response
-        if isinstance(response, tuple):
-            response = response[0]
-
-        Logs.debug("Response parsed")
+        Logs.debug(f'RESPONSES: {response}')
         if output_schema:
             if isinstance(output_schema, Schema):
                 serialized_response = output_schema.dump(response)
             elif isinstance(output_schema, fields.Field):
                 # Field that does not need to be deserialized
                 serialized_response = output_schema.serialize(response)
+
         if fn_definition.__class__.__name__ == 'CreateWritingStream':
-            Logs.message("Saving Stream to Plugin Instance")
             if response:
-                self.streams.append(response)
+                Logs.message("Saving Stream to Plugin Instance")
+                new_stream = nanome.api.streams.Stream(*response)
+                self.streams.append(new_stream)
+                serialized_response = output_schema.dump(new_stream)
             else:
                 Logs.error("Error creating stream")
 
