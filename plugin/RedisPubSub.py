@@ -77,8 +77,8 @@ class RedisPubSubPlugin(NanomePlugin):
             if not message:
                 continue
             if message.get('type') == 'message':
-                new_task = asyncio.create_task(self.process_message(message))
-                self._tasks.append(new_task)
+                await self.process_message(message)
+                # self._tasks.append(new_task)
 
     async def process_message(self, message):
         """Deserialize message and forward request to NTS."""
@@ -87,7 +87,7 @@ class RedisPubSubPlugin(NanomePlugin):
             data = json.loads(message.get('data'))
         except json.JSONDecodeError:
             error_message = 'JSON Decode Failure'
-            self.send_notification(NotificationTypes.error, error_message)
+            self.client.send_notification(NotificationTypes.error, error_message)
 
         Logs.message(f"Received Request: {data.get('function')}")
         fn_name = data['function']
@@ -106,22 +106,15 @@ class RedisPubSubPlugin(NanomePlugin):
                 arg = schema_or_field.deserialize(ser_arg)
             fn_args.append(arg)
         function_to_call = getattr(self.client, fn_name)
-
+        Logs.debug("Function to Call: " + str(function_to_call))
         # Set up callback function
-        argspec = inspect.getargspec(function_to_call)
-        callback_fn = None
-        if 'callback' in argspec.args:
-            callback_fn = functools.partial(
-                self.message_callback, fn_definition, response_channel, process_start_time)
-            fn_args.append(callback_fn)
-        # Call API function
-        function_to_call(*fn_args, **fn_kwargs)
-        if not callback_fn:
-            # If no callback function, send a success notification
-            success_message = f'Successfully called {fn_name}'
-            process_end_time = time.time()
-            elapsed_time = process_end_time - process_start_time
-            Logs.message(f'{success_message} in {round(elapsed_time, 2)} seconds')
+        # Check if function_to_call is a coroutine
+        if inspect.iscoroutinefunction(function_to_call):
+            output = await function_to_call(*fn_args, **fn_kwargs)
+        else:
+            output = function_to_call(*fn_args, **fn_kwargs)
+
+        self.message_callback(fn_definition, response_channel, process_start_time, output)
 
     def message_callback(self, fn_definition, response_channel, process_start_time, *responses):
         """When response data received from NTS, serialize and publish to response channel."""
