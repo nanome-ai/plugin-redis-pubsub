@@ -1,23 +1,21 @@
-import asyncio
-import functools
 import inspect
 import json
 import os
 import random
 import string
-import redis
+import redis.asyncio as redis
 import time
-import threading
 
 import nanome
 from nanome._internal.serializer_fields import TypeSerializer
-from nanome.util import async_callback, Logs
+from nanome.util import Logs
 from nanome.util.enums import NotificationTypes, PluginListButtonType
 from marshmallow import Schema, fields
 
 from nanome.api import schemas, ui
 from nanome.beta.nanome_sdk import NanomePlugin
 from nanome.api.schemas.api_definitions import api_function_definitions
+
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
 MENU_PATH = os.path.join(BASE_PATH, 'default_menu.json')
@@ -69,11 +67,11 @@ class RedisPubSubPlugin(NanomePlugin):
         Subscribe to provided redis channel, and process any requests received.
         """
         pubsub = self.rds.pubsub(ignore_subscribe_messages=True)
-        pubsub.subscribe(redis_channel)
+        await pubsub.subscribe(redis_channel)
 
         while True:
             # Check if any new messages have been received
-            message = pubsub.get_message()
+            message = await pubsub.get_message()
             if not message:
                 continue
             if message.get('type') == 'message':
@@ -143,7 +141,7 @@ class RedisPubSubPlugin(NanomePlugin):
         json_response = json.dumps(serialized_response)
         if response_channel:
             Logs.message(f'Publishing Response to {response_channel}')
-            self.rds.publish(response_channel, json_response)
+            await self.rds.publish(response_channel, json_response)
         else:
             Logs.warning('No response channel provided, response will not be sent')
         process_end_time = time.time()
