@@ -4,6 +4,7 @@ import os
 import random
 import string
 import redis.asyncio as redis
+import sys
 import time
 
 import nanome
@@ -20,6 +21,8 @@ REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = os.environ.get('REDIS_PORT')
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
 
+
+sys.setrecursionlimit(1000000)
 
 class RedisPubSubPlugin(NanomePlugin):
 
