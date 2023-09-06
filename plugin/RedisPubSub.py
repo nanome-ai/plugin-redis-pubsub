@@ -1,5 +1,5 @@
-import inspect
-import json
+import asyncio
+import pickle
 import os
 import random
 import string
@@ -7,14 +7,10 @@ import redis.asyncio as redis
 import time
 
 import nanome
-from nanome._internal.serializer_fields import TypeSerializer
 from nanome.util import Logs
 from nanome.util.enums import NotificationTypes, PluginListButtonType
-from marshmallow import Schema, fields
-
-from nanome.api import schemas, ui
+from nanome.api import ui
 from nanome.beta.nanome_sdk import NanomePlugin
-from nanome.api.schemas.api_definitions import api_function_definitions
 
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
@@ -36,11 +32,7 @@ class RedisPubSubPlugin(NanomePlugin):
         Logs.message(f"Starting {self.__class__.__name__} on Redis Channel {self.redis_channel}")
         self.streams = []
         self.shapes = []
-
-        self.rds = redis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD,
-            decode_responses=True)
-
+        self.rds = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
         self._tasks = []
 
     async def on_run(self):
@@ -59,7 +51,7 @@ class RedisPubSubPlugin(NanomePlugin):
         Logs.message("Polling for requests")
         self.client.set_plugin_list_button(PluginListButtonType.run, text='Live', usable=False)
         self.client.update_menu(self.menu)
-        await self.poll_redis_for_requests(self.redis_channel)
+        self.poll_task = asyncio.create_task(self.poll_redis_for_requests(self.redis_channel))
 
     async def poll_redis_for_requests(self, redis_channel):
         """Start a non-halting loop polling for and processing Plugin Requests.
@@ -75,89 +67,60 @@ class RedisPubSubPlugin(NanomePlugin):
             if not message:
                 continue
             if message.get('type') == 'message':
-                await self.process_message(message)
-                # self._tasks.append(new_task)
+                new_task = asyncio.create_task(self.process_message(message))
+                self._tasks.append(new_task)
+                self._tasks = [task for task in self._tasks if not task.done()]
 
     async def process_message(self, message):
         """Deserialize message and forward request to NTS."""
         process_start_time = time.time()
         try:
-            data = json.loads(message.get('data'))
-        except json.JSONDecodeError:
-            error_message = 'JSON Decode Failure'
+            message_data = pickle.loads(message.get('data'))
+        except Exception:
+            error_message = 'Pickle Decode Failure'
             self.client.send_notification(NotificationTypes.error, error_message)
+            return
+        fn_name = message_data['function']
+        response_channel = message_data.get('response_channel')
+        Logs.message(f"Received Request: {fn_name}")
 
-        Logs.message(f"Received Request: {data.get('function')}")
-        fn_name = data['function']
-        serialized_args = data['args']
-        response_channel = data.get('response_channel')
-        fn_definition = api_function_definitions[fn_name]
-        fn_args = []
-        fn_kwargs = {}
+        if fn_name == 'get_plugin_data':
+            response = self.get_plugin_data()
+            pickled_response = pickle.dumps(response)
+            if response_channel:
+                Logs.message(f'Publishing Response to {response_channel}')
+                await self.rds.publish(response_channel, pickled_response)
 
-        # Deserialize args and kwargs into python classes
-        for ser_arg, schema_or_field in zip(serialized_args, fn_definition.params):
-            if isinstance(schema_or_field, Schema):
-                arg = schema_or_field.load(ser_arg)
-            elif isinstance(schema_or_field, fields.Field):
-                # Field that does not need to be deserialized
-                arg = schema_or_field.deserialize(ser_arg)
-            fn_args.append(arg)
-
-        # Most functions are on the client, but some are on the NanomePlugin
-        if hasattr(self.client, fn_name):
-            function_to_call = getattr(self.client, fn_name)
         else:
-            function_to_call = getattr(self, fn_name)
-
-        Logs.debug(f"Function to call: {fn_name}")
-
-        # Check if function_to_call is a coroutine
-        if inspect.iscoroutinefunction(function_to_call):
-            response = await function_to_call(*fn_args, **fn_kwargs)
-        else:
-            response = function_to_call(*fn_args, **fn_kwargs)
-        Logs.debug("Responses received")
-        # When response data received from NTS, serialize and publish to response channel.
-        output_schema = fn_definition.output
-        serialized_response = {}
-        Logs.debug(f'RESPONSES: {response}')
-        if output_schema:
-            if isinstance(output_schema, Schema):
-                serialized_response = output_schema.dump(response)
-            elif isinstance(output_schema, fields.Field):
-                # Field that does not need to be deserialized
-                serialized_response = output_schema.serialize(response)
-
-        if fn_definition.__class__.__name__ == 'CreateWritingStream':
-            if response:
-                Logs.message("Saving Stream to Plugin Instance")
-                new_stream = nanome.api.streams.Stream(*response)
-                self.streams.append(new_stream)
-                serialized_response = output_schema.dump(new_stream)
+            request_id = message_data.get('request_id')
+            packet = message_data.get('packet')
+            response_channel = message_data.get('response_channel')
+            response = await self.send_packet_to_nts(request_id, packet, response_channel)
+            if not response_channel:
+                return
+            pickled_response = pickle.dumps(response)
+            if response_channel:
+                Logs.message(f'Publishing Response to {response_channel}')
+                await self.rds.publish(response_channel, pickled_response)
             else:
-                Logs.error("Error creating stream")
+                Logs.warning('No response channel provided, response will not be sent')
+            process_end_time = time.time()
+            elapsed_time = process_end_time - process_start_time
+            Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
 
-        json_response = json.dumps(serialized_response)
+    async def send_packet_to_nts(self, request_id, packet, response_channel):
+        # Store future to receive any response required
         if response_channel:
-            Logs.message(f'Publishing Response to {response_channel}')
-            await self.rds.publish(response_channel, json_response)
-        else:
-            Logs.warning('No response channel provided, response will not be sent')
-        process_end_time = time.time()
-        elapsed_time = process_end_time - process_start_time
-        Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
+            fut = asyncio.Future()
+            self.client.request_futs[request_id] = fut
 
-    def deserialize_arg(self, arg_data):
-        """Deserialize arguments recursively."""
-        if isinstance(arg_data, list):
-            for arg_item in arg_data:
-                self.deserialize_arg(arg_item)
-        if arg_data.__class__ in schemas.structure_schema_map:
-            schema_class = schemas.structure_schema_map[arg_data.__class__]
-            schema = schema_class()
-            arg = schema.load(arg_data)
-        return arg
+        self.client.writer.write(packet)
+
+        if response_channel:
+            await self.client.request_futs[request_id]
+            Logs.debug("Responses received")
+            response = fut.result()
+            return response
 
     def stream_update(self, stream_id, stream_data):
         """Function to update stream."""
@@ -182,16 +145,12 @@ class RedisPubSubPlugin(NanomePlugin):
 
     def get_plugin_data(self):
         """Return data required for interface to serialize message requests."""
-        plugin_id = self._network._plugin_id
-        session_id = self._network._session_id
-        version_table = TypeSerializer.get_version_table()
+        plugin_id = self.client.plugin_id
+        session_id = self.client.session_id
+        version_table = self.client.version_table
         data = {
             'plugin_id': plugin_id,
             'session_id': session_id,
             'version_table': version_table
         }
         return data
-
-    @property
-    def request_futs(self):
-        return self.client.request_futs

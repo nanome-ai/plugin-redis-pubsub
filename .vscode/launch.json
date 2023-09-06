@@ -10,13 +10,28 @@
       "request": "launch",
       "program": "run.py",
       "envFile": "${workspaceFolder}/.env",
-      "env":{
+      "env": {
         "PLUGIN_VERBOSE": "True",
-        "PLUGIN_NAME": "[wip]-pubsub",
+        "PLUGIN_NAME": "[wip]-pubsub"
       },
       "console": "integratedTerminal",
       "python": "${command:python.interpreterPath}",
       "justMyCode": false
+    },
+    {
+      "name": "Docker: PubSubPlugin",
+      "type": "docker",
+      "request": "launch",
+      "preLaunchTask": "docker-run: debug",
+      "python": {
+        "pathMappings": [
+          {
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "/app"
+          }
+        ],
+        "projectType": "general"
+      }
     }
   ]
 }
