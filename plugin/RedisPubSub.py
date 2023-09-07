@@ -24,11 +24,13 @@ REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
 
 sys.setrecursionlimit(1000000)
 
+
 class RedisPubSubPlugin(NanomePlugin):
 
     async def on_start(self):
-        redis_channel = os.environ.get('REDIS_CHANNEL')
+        self.client.deserialize_payloads = False
         # Create random channel name if not explicitly set.
+        redis_channel = os.environ.get('REDIS_CHANNEL')
         if not redis_channel:
             redis_channel = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
         self.redis_channel = redis_channel
@@ -36,6 +38,7 @@ class RedisPubSubPlugin(NanomePlugin):
         self.streams = []
         self.shapes = []
         self.rds = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
+        await self.rds.ping()
         self._tasks = []
 
     async def on_run(self):
