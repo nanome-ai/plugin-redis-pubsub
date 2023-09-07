@@ -1,17 +1,16 @@
 import asyncio
-import pickle
 import os
+import pickle
 import random
-import string
 import redis.asyncio as redis
-import sys
+import string
 import time
 
 import nanome
-from nanome.util import Logs
-from nanome.util.enums import NotificationTypes, PluginListButtonType
 from nanome.api import ui
 from nanome.beta.nanome_sdk import NanomePlugin
+from nanome.util import Logs
+from nanome.util.enums import NotificationTypes, PluginListButtonType
 
 
 BASE_PATH = os.path.dirname(f'{os.path.realpath(__file__)}')
@@ -20,9 +19,6 @@ MENU_PATH = os.path.join(BASE_PATH, 'default_menu.json')
 REDIS_HOST = os.environ.get('REDIS_HOST')
 REDIS_PORT = os.environ.get('REDIS_PORT')
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD')
-
-
-sys.setrecursionlimit(1000000)
 
 
 class RedisPubSubPlugin(NanomePlugin):
@@ -92,27 +88,21 @@ class RedisPubSubPlugin(NanomePlugin):
 
         if fn_name == 'get_plugin_data':
             response = self.get_plugin_data()
-            pickled_response = pickle.dumps(response)
-            if response_channel:
-                Logs.message(f'Publishing Response to {response_channel}')
-                await self.rds.publish(response_channel, pickled_response)
-
         else:
             request_id = message_data.get('request_id')
             packet = message_data.get('packet')
             response_channel = message_data.get('response_channel')
             response = await self.send_packet_to_nts(request_id, packet, response_channel)
-            if not response_channel:
-                return
-            pickled_response = pickle.dumps(response)
-            if response_channel:
-                Logs.message(f'Publishing Response to {response_channel}')
-                await self.rds.publish(response_channel, pickled_response)
-            else:
-                Logs.warning('No response channel provided, response will not be sent')
-            process_end_time = time.time()
-            elapsed_time = process_end_time - process_start_time
-            Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
+
+        pickled_response = pickle.dumps(response)
+        if response_channel:
+            Logs.message(f'Publishing Response to {response_channel}')
+            await self.rds.publish(response_channel, pickled_response)
+        elif response and response_channel:
+            Logs.warning('No response channel provided, response will not be sent')
+        process_end_time = time.time()
+        elapsed_time = process_end_time - process_start_time
+        Logs.message(f'Message processed after {round(elapsed_time, 2)} seconds')
 
     async def send_packet_to_nts(self, request_id, packet, response_channel):
         # Store future to receive any response required
@@ -127,27 +117,6 @@ class RedisPubSubPlugin(NanomePlugin):
             Logs.debug("Responses received")
             response = fut.result()
             return response
-
-    def stream_update(self, stream_id, stream_data):
-        """Function to update stream."""
-        stream = next(strm for strm in self.streams if strm._Stream__id == stream_id)
-        output = stream.update(stream_data)
-        return output
-
-    def stream_destroy(self, stream_id):
-        """Function to destroy stream."""
-        stream = next(strm for strm in self.streams if strm._Stream__id == stream_id)
-        output = stream.destroy()
-        return output
-
-    async def upload_shapes(self, shape_list):
-        for shape in shape_list:
-            Logs.message(shape.index)
-        response = await nanome.api.shapes.Shape.upload_multiple(shape_list)
-        self.shapes.extend(response)
-        for shape in shape_list:
-            Logs.message(shape.index)
-        return shape_list
 
     def get_plugin_data(self):
         """Return data required for interface to serialize message requests."""
