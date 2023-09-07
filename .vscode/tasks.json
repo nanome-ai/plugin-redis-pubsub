@@ -39,6 +39,7 @@
             "REDIS_CHANNEL": "LVPL8",
             "REDIS_HOST": "127.0.0.1"
         },
+        "network": "host",
         "volumes": [
             {
                 "localPath": "${workspaceFolder}",
