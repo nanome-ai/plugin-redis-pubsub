@@ -45,10 +45,10 @@
                 "localPath": "${workspaceFolder}",
                 "containerPath": "/app"
             },
-            {
-              "localPath": "${workspaceFolder}/../nanome-lib/nanome",
-              "containerPath": "/opt/conda/lib/python3.9/site-packages/nanome"
-          }
+          //   {
+          //     "localPath": "${workspaceFolder}/../nanome-lib/nanome",
+          //     "containerPath": "/opt/conda/lib/python3.9/site-packages/nanome"
+          // }
         ],
       },
       "python": {

@@ -5,6 +5,7 @@ services:
     ports:
       - 6379:6379
   plugin:
+    network_mode: "host"
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -20,22 +21,8 @@ services:
       - PLUGIN_NAME=${PLUGIN_NAME:-}
       - PLUGIN_DESCRIPTION=${PLUGIN_DESCRIPTION:-}
       - PLUGIN_VERBOSE=${PLUGIN_VERBOSE:-TRUE}
-    depends_on:
-      - redis
+    # depends_on:
+    #   - redis
     volumes:
       - ./plugin:/app/plugin
-  cookbook:
-    tty: true
-    image: public.ecr.aws/h7r1e4h2/cookbook:0.3.0
-    environment:
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - JUPYTER_TOKEN=${JUPYTER_TOKEN:-change_me}
-      - REDIS_CHANNEL=${REDIS_CHANNEL:-}
-    depends_on:
-      - redis
-    ports:
-      - 8888:8888
-    # command: python run.py -a ${NTS_HOST} -p ${NTS_PORT} -r -v
-
+      # - ../nanome-lib/nanome:/opt/conda/lib/python3.9/site-packages/nanome
