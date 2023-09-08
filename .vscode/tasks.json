@@ -5,7 +5,55 @@
       "label": "autopep8 current file",
       "type": "process",
       "command": "${config:python.formatting.autopep8Path}",
-      "args": [ "--ignore", "E501", "--in-place", "${file}"]
+      "args": [
+        "--ignore",
+        "E501",
+        "--in-place",
+        "${file}"
+      ]
+    },
+    {
+      "type": "docker-build",
+      "label": "docker-build",
+      "platform": "python",
+      "dockerBuild": {
+        "tag": "pluginredispubsub:latest",
+        "dockerfile": "${workspaceFolder}/docker/Dockerfile",
+        "context": "${workspaceFolder}",
+        "pull": true
+      }
+    },
+    {
+      "type": "docker-run",
+      "label": "docker-run: debug",
+      "dependsOn": [
+        "docker-build"
+      ],
+      "dockerRun": {
+        "image": "pluginredispubsub:latest",
+        "envFiles": ["${workspaceFolder}/.env"],
+        "env": {
+            "PLUGIN_NAME": "[wip]-redis-pubsub",
+            "PLUGIN_VERBOSE": "True",
+            "PLUGIN_REMOTE_LOGGING": "False",
+            "REDIS_CHANNEL": "LVPL8",
+            "REDIS_HOST": "127.0.0.1"
+        },
+        "network": "host",
+        "volumes": [
+            {
+                "localPath": "${workspaceFolder}",
+                "containerPath": "/app"
+            },
+          //   {
+          //     "localPath": "${workspaceFolder}/../nanome-lib/nanome",
+          //     "containerPath": "/opt/conda/lib/python3.9/site-packages/nanome"
+          // }
+        ],
+      },
+      "python": {
+        "file": "run.py",
+      }
     }
   ]
 }

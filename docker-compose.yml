@@ -5,6 +5,7 @@ services:
     ports:
       - 6379:6379
   plugin:
+    network_mode: "host"
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -19,9 +20,9 @@ services:
       - REDIS_CHANNEL=${REDIS_CHANNEL:-}
       - PLUGIN_NAME=${PLUGIN_NAME:-}
       - PLUGIN_DESCRIPTION=${PLUGIN_DESCRIPTION:-}
-
-    depends_on:
-      - redis
+      - PLUGIN_VERBOSE=${PLUGIN_VERBOSE:-TRUE}
+    # depends_on:
+    #   - redis
     volumes:
       - ./plugin:/app/plugin
-
+      # - ../nanome-lib/nanome:/opt/conda/lib/python3.9/site-packages/nanome
