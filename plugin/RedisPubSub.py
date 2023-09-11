@@ -42,7 +42,7 @@ class RedisPubSubPlugin(NanomePlugin):
         if default_url:
             url = default_url
             Logs.message(f'Opening {url}')
-            self.open_url(url)
+            self.client.open_url(url)
         # Render menu with room name on it
         self.menu = ui.Menu()
         id_node = self.menu.root.create_child_node()
